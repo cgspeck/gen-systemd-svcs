@@ -1,9 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::{
-    fmt::format,
     fs::{self, File},
     io::BufReader,
-    path::{Display, Path, PathBuf},
+    path::PathBuf,
 };
 
 use clap::Parser;
@@ -86,6 +85,34 @@ fn default_remain_after_exit() -> Option<RemainAfterExit> {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(rename_all = "lowercase")]
+enum ServiceType {
+    Simple,
+    OneShot,
+    Forking,
+    Notify,
+    DBus,
+    Idle,
+}
+
+impl core::fmt::Display for ServiceType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(
+            self.serialize(serde_yaml::value::Serializer)
+                .unwrap()
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        Ok(())
+    }
+}
+
+fn default_service_type() -> Option<ServiceType> {
+    None
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 struct Service {
     pub environment_file: Option<String>,
@@ -97,6 +124,8 @@ struct Service {
     pub remain_after_exit: Option<RemainAfterExit>,
     pub restart: Option<Restart>,
     pub timeout_start_sec: Option<u32>,
+    #[serde(default = "default_service_type", rename = "Type")]
+    pub service_type: Option<ServiceType>,
     pub user: Option<String>,
     pub working_directory: Option<String>,
 }
@@ -167,6 +196,7 @@ fn resolve_service_section(
     let mut group = template_service.group;
     let mut remain_after_exit = template_service.remain_after_exit;
     let mut restart = template_service.restart;
+    let mut service_type = template_service.service_type;
     let mut timeout_start_sec = template_service.timeout_start_sec;
     let mut user = template_service.user;
     let mut working_directory = template_service.working_directory;
@@ -192,6 +222,9 @@ fn resolve_service_section(
         }
         if i.restart.is_some() {
             restart = i.restart;
+        }
+        if i.service_type.is_some() {
+            service_type = i.service_type;
         }
         if i.timeout_start_sec.is_some() {
             timeout_start_sec = i.timeout_start_sec;
@@ -229,6 +262,9 @@ fn resolve_service_section(
     }
     if let Some(v) = timeout_start_sec {
         memo += &format!("TimeoutStartSec={}\n", v);
+    }
+    if let Some(v) = service_type {
+        memo += &format!("Type={}\n", v);
     }
     if let Some(v) = user {
         memo += &format!("User={}\n", v);
