@@ -7,11 +7,19 @@ use std::{
 
 use clap::Parser;
 
+fn default_template_deps() -> Vec<String> {
+    vec![]
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 struct TemplateUnit {
+    #[serde(default = "default_template_deps")]
     pub requires: Vec<String>,
+    #[serde(default = "default_template_deps")]
     pub after: Vec<String>,
+    #[serde(default = "default_template_deps")]
+    pub wants: Vec<String>
 }
 
 fn default_inherit_requires() -> bool {
@@ -22,6 +30,10 @@ fn default_inherit_after() -> bool {
     true
 }
 
+fn default_inherit_wants() -> bool {
+    true
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 struct InstanceUnit {
@@ -29,10 +41,13 @@ struct InstanceUnit {
     pub description: String,
     pub requires: Option<Vec<String>>,
     pub after: Option<Vec<String>>,
+    pub wants: Option<Vec<String>>,
     #[serde(default = "default_inherit_requires")]
     pub inherit_requires: bool,
     #[serde(default = "default_inherit_after")]
     pub inherit_after: bool,
+    #[serde(default = "default_inherit_wants")]
+    pub inherit_wants: bool,
     pub requires_mounts_for: Option<Vec<String>>,
 }
 
@@ -306,6 +321,19 @@ fn resolve(instance: InstanceServiceDef, template: TemplateServiceDef) -> String
 
     for after in afters {
         memo += &format!("After={}\n", after);
+    }
+
+    let wants: Vec<String> = match instance.unit.inherit_wants {
+        true => {
+            let mut v = template.unit.wants.clone();
+            v.extend(instance.unit.wants.unwrap_or_default());
+            v
+        }
+        false => instance.unit.wants.unwrap_or_default(),
+    };
+
+    for want in wants {
+        memo += &format!("Wants={}\n", want);
     }
 
     if let Some(v) = instance.unit.requires_mounts_for {
